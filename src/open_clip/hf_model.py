@@ -12,25 +12,9 @@ try:
     from transformers import AutoModel, AutoTokenizer, AutoConfig, PretrainedConfig
 except ImportError as e:
     transformers = None
-
 from timm.models.layers import Mlp
 
-
-# HF architecture dict:
-arch_dict = {
-  "roberta-base": {
-    "config_names": {
-      "context_length": "max_position_embeddings",
-      "vocab_size": "vocab_size",
-      "width": "hidden_size",
-      "heads": "num_attention_heads",
-      "layers": "num_hidden_layers",
-    },
-    "pooler": None, #TODO: find default roberta pooler
-  }
-}
-
-
+from hf_configs import arch_dict
 
 # utils
 # TODO: cls, max, mean, last
