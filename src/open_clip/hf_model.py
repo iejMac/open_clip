@@ -85,15 +85,9 @@ class PreTrainedTextEncoder(nn.Module):
           self.transformer = AutoModel.from_config(config)
         
         self.pooler = get_pooler(pooler_type)
-<<<<<<< HEAD
         d_model = getattr(self.config, arch_dict[model_name_or_path]["config_names"]["width"])
-        if (d_model == embedding_dim) and (proj is None): # do we always need a proj?
-=======
-        d_model = self.config.hidden_size # TODO: get d_model from config
-        # different models can have different names for it
-        # ?? do we use separate classes for different archs or handle it with helper funcs  
+
         if (d_model == output_dim) and (proj is None): # do we always need a proj?
->>>>>>> 31980a165c78c1e3b04490bb2d36ae6a115d2542
             self.proj = nn.Identity()
         elif proj == 'linear':
             self.proj == nn.Linear(d_model, output_dim, bias=False)
