@@ -14,6 +14,22 @@ except ImportError as e:
     transformers = None
 
 
+# HF architecture dict:
+arch_dict = {
+  "roberta-base": {
+    "config_names": {
+      "context_length": "max_position_embeddings",
+      "vocab_size": "vocab_size",
+      "width": "hidden_size",
+      "heads": "num_attention_heads",
+      "layers": "num_hidden_layers",
+    },
+    "pooler": None, #TODO: find default roberta pooler
+  }
+}
+
+
+
 # utils
 # TODO: cls, max, mean, last
 _POOLERS = {}
@@ -58,9 +74,7 @@ class PreTrainedTextEncoder(nn.Module):
         self.transformer = AutoModel.from_pretrained(model_name_or_path)
         
         self.pooler = get_pooler(pooler_type)
-        d_model = self.config.hidden_size # TODO: get d_model from config
-        # different models can have different names for it
-        # ?? do we use separate classes for different archs or handle it with helper funcs  
+        d_model = getattr(self.config, arch_dict[model_name_or_path]["config_names"]["width"])
         if (d_model == embedding_dim) and (proj is None): # do we always need a proj?
             self.proj = nn.Identity()
         elif proj == 'linear':
