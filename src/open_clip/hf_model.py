@@ -85,8 +85,9 @@ _DEFAULT_POOLER = {}
 def get_pooler(pooler_type:str):
     if pooler_type is None:
         # pooler_type = _DEFAULT_POOLER[self.config]
-        pass
-    return DummyPooler()
+        return MeanPooler()
+    else:
+        _POOLERS[pooler_type]()
 
 class PreTrainedTextEncoder(nn.Module):
     """HuggingFace model adapter
