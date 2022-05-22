@@ -1,8 +1,6 @@
-
-
 # HF architecture dict:
 arch_dict = {
-  "roberta-base": {
+  "roberta": {
     "config_names": {
       "context_length": "max_position_embeddings",
       "vocab_size": "vocab_size",
@@ -10,6 +8,6 @@ arch_dict = {
       "heads": "num_attention_heads",
       "layers": "num_hidden_layers",
     },
-    "pooler": None, #TODO: find default roberta pooler
+    "pooler": "mean_pooler",
   }
 }

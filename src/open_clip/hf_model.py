@@ -66,15 +66,8 @@ class ClsPooler(nn.Module):
         return x.last_hidden_state[:, self.cls_token_position, :]
 
 
-# arch-to-pooler mapping
-_DEFAULT_POOLER = {}
-
 def get_pooler(pooler_type:str):
-    if pooler_type is None:
-        # pooler_type = _DEFAULT_POOLER[self.config]
-        return MeanPooler()
-    else:
-        _POOLERS[pooler_type]()
+    return _POOLERS[pooler_type]()
 
 class PreTrainedTextEncoder(nn.Module):
     """HuggingFace model adapter
@@ -95,15 +88,18 @@ class PreTrainedTextEncoder(nn.Module):
         if transformers is None:
             raise RuntimeError("Please `pip install transformers` to use pre-trained HuggingFace models")
         if config is None:
-          self.config = AutoConfig.from_pretrained(model_name_or_path)
-          self.transformer = AutoModel.from_pretrained(model_name_or_path)
+            self.config = AutoConfig.from_pretrained(model_name_or_path)
+            self.transformer = AutoModel.from_pretrained(model_name_or_path)
         else:
-          self.config = config
-          self.transformer = AutoModel.from_config(config)
-        
-        self.pooler = get_pooler(pooler_type)
-        d_model = getattr(self.config, arch_dict[model_name_or_path]["config_names"]["width"])
+            self.config = config
+            self.transformer = AutoModel.from_config(config)
 
+        if pooler_type is None: # get default arch pooler
+            self.pooler = get_pooler(arch_dict[self.config.model_type]["pooler"])
+        else:
+            self.pooler = get_pooler(pooler_type)
+
+        d_model = getattr(self.config, arch_dict[self.config.model_type]["config_names"]["width"])
         if (d_model == output_dim) and (proj is None): # do we always need a proj?
             self.proj = nn.Identity()
         elif proj == 'linear':
