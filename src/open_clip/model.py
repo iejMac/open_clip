@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.checkpoint import checkpoint
 
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
@@ -20,6 +21,8 @@ from .transformer import QuickGELU, VisualTransformer, TextTransformer
 class CLIPVisionCfg:
     layers: Union[Tuple[int, int, int, int], int] = 12
     width: int = 768
+    head_width: int = 64
+    mlp_ratio: float = 4.0
     patch_size: int = 16
     image_size: Union[Tuple[int, int], int] = 224
     timm_model_name: str = None  # a valid model name overrides layers, width, patch_size
@@ -30,11 +33,11 @@ class CLIPVisionCfg:
 
 @dataclass
 class CLIPTextCfg:
-    context_length: int
-    vocab_size: int
-    width: int
-    heads: int
-    layers: int
+    context_length: int = 77
+    vocab_size: int = 49408
+    width: int = 512
+    heads: int = 8
+    layers: int = 12
 
 
 class CLIP(nn.Module):
@@ -67,7 +70,7 @@ class CLIP(nn.Module):
             )
             act_layer = nn.GELU  # so that text transformer doesn't use QuickGELU w/ timm models
         elif isinstance(vision_cfg.layers, (tuple, list)):
-            vision_heads = vision_cfg.width * 32 // 64
+            vision_heads = vision_cfg.width * 32 // vision_cfg.head_width
             self.visual = ModifiedResNet(
                 layers=vision_cfg.layers,
                 output_dim=embed_dim,
@@ -76,13 +79,14 @@ class CLIP(nn.Module):
                 width=vision_cfg.width
             )
         else:
-            vision_heads = vision_cfg.width // 64
+            vision_heads = vision_cfg.width // vision_cfg.head_width
             self.visual = VisualTransformer(
                 image_size=vision_cfg.image_size,
                 patch_size=vision_cfg.patch_size,
                 width=vision_cfg.width,
                 layers=vision_cfg.layers,
                 heads=vision_heads,
+                mlp_ratio=vision_cfg.mlp_ratio,
                 output_dim=embed_dim,
                 act_layer=act_layer,
             )
