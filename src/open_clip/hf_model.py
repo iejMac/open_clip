@@ -65,10 +65,6 @@ class ClsPooler(nn.Module):
         
         return x.last_hidden_state[:, self.cls_token_position, :]
 
-
-def get_pooler(pooler_type:str):
-    return _POOLERS[pooler_type]()
-
 class PreTrainedTextEncoder(nn.Module):
     """HuggingFace model adapter
     
@@ -95,9 +91,9 @@ class PreTrainedTextEncoder(nn.Module):
             self.transformer = AutoModel.from_config(config)
 
         if pooler_type is None: # get default arch pooler
-            self.pooler = get_pooler(arch_dict[self.config.model_type]["pooler"])
+            self.pooler = _POOLERS[(arch_dict[self.config.model_type]["pooler"])]()
         else:
-            self.pooler = get_pooler(pooler_type)
+            self.pooler = _POOLERS[get_pooler(pooler_type)]()
 
         d_model = getattr(self.config, arch_dict[self.config.model_type]["config_names"]["width"])
         if (d_model == output_dim) and (proj is None): # do we always need a proj?
