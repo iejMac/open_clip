@@ -21,7 +21,7 @@ from timm.models.layers import Mlp
 def _camel2snake(s):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
 
-# TODO: cls, max, mean, last
+# TODO: ?last - for gpt-like models
 _POOLERS = {}
 
 def register_pooler(cls):
@@ -29,23 +29,10 @@ def register_pooler(cls):
     _POOLERS[_camel2snake(cls.__name__)] = cls
     return cls
 
-@register_pooler
-class DummyPooler(nn.Module):
-    "Fetches first of output hidden state"
-
-    def __init__(self):
-        super().__init__()
-        pass
-    
-    def forward(self, x:BaseModelOutput, attention_mask:TensorType):
-        return x.last_hidden_state[:, 0, :]
 
 @register_pooler
 class MeanPooler(nn.Module):
     "Mean pooling"
-
-    def __init__(self) -> None:
-        super().__init__()
 
     def forward(self, x:BaseModelOutput, attention_mask:TensorType):
         masked_output = x.last_hidden_state * attention_mask.unsqueeze(-1)        
@@ -55,8 +42,8 @@ class MeanPooler(nn.Module):
 class MaxPooler(nn.Module):
     "Max pooling"
 
-    def forward(self, x:BaseModelOutput, attenstion_mask:TensorType):
-        masked_output = x.last_hidden_state.masked_fill(attenstion_mask.unsqueeze(-1), -torch.inf)
+    def forward(self, x:BaseModelOutput, attention_mask:TensorType):
+        masked_output = x.last_hidden_state.masked_fill(attention_mask.unsqueeze(-1), -torch.inf)
         return masked_output.max(1).values
 
 @register_pooler
@@ -128,7 +115,7 @@ class PreTrainedTextEncoder(nn.Module):
     def forward(self, x:TensorType) -> TensorType:
         attn_mask = (x != self.config.pad_token_id).long()
         out = self.transformer(input_ids=x, attention_mask=attn_mask)
-        pooled_out = self.pooler(out)
+        pooled_out = self.pooler(out, attn_mask)
 
         return self.proj(pooled_out)
 
@@ -137,9 +124,3 @@ class PreTrainedTextEncoder(nn.Module):
         for n, p in self.transformer.named_parameters():
             if True: #mb optional LayerNorm params etc.
                 p.requires_grad = False
-
-# temporary for fast testing
-if __name__=="__main__":
-    # import fire
-    # fire.Fire()
-    print(_POOLERS)
