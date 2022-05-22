@@ -14,7 +14,6 @@ try:
     from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 except ImportError as e:
     transformers = None
-from timm.models.layers import Mlp
 
 from hf_configs import arch_dict
 
@@ -110,7 +109,12 @@ class PreTrainedTextEncoder(nn.Module):
         elif proj == 'linear':
             self.proj == nn.Linear(d_model, output_dim, bias=False)
         elif proj == 'mlp':
-            self.proj = Mlp(d_model, (d_model + output_dim)//2, output_dim, bias=False)
+            hidden_size = (d_model + output_dim)//2
+            self.proj = nn.Sequential(
+                nn.Linear(d_model, hidden_size, bias=False),
+                nn.GELU(),
+                nn.Linear(hidden_size, output_dim, bias=False),
+            )
 
     def forward(self, x:TensorType) -> TensorType:
         attn_mask = (x != self.config.pad_token_id).long()
