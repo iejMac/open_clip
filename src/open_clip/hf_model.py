@@ -3,13 +3,15 @@
 Wraps HuggingFace transformers (https://github.com/huggingface/transformers) models for use as a text tower in CLIP model.
 """
 
+import re
+
 import torch
 import torch.nn as nn
 from torch import TensorType
-from traitlets import default
 try:
     import transformers
     from transformers import AutoModel, AutoTokenizer, AutoConfig, PretrainedConfig
+    from transformers.modeling_outputs import BaseModelOutput
 except ImportError as e:
     transformers = None
 
@@ -17,13 +19,18 @@ from timm.models.layers import Mlp
 
 
 # utils
+def _camel2snake(s):
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', s).lower()
+
 # TODO: cls, max, mean, last
 _POOLERS = {}
 
 def register_pooler(cls):
-    "Register pooler class"
-    pass
+    "Decorator registering pooler class"
+    _POOLERS[_camel2snake(cls.__name__)] = cls
+    return cls
 
+@register_pooler
 class DummyPooler(nn.Module):
     "Fetches first of output hidden state"
 
@@ -33,6 +40,26 @@ class DummyPooler(nn.Module):
     
     def forward(self, x):
         return x.last_hidden_state[:, 0, :]
+
+@register_pooler
+class MeanPooler(nn.Module):
+    "Mean pooling"
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, x:BaseModelOutput, attention_mask:TensorType):
+        masked_output = x.last_hidden_state * attention_mask.unsqueeze(-1)        
+        return masked_output.sum(dim=1) / attention_mask.sum(-1, keepdim=True)
+
+@register_pooler
+class MaxPooler(nn.Module):
+
+    def forward(self, x:BaseModelOutput, attenstion_mask:TensorType):
+        masked_output = x.last_hidden_state.masked_fill(attenstion_mask, -torch.inf)
+        return masked_output.max(1).values
+
+
 
 # arch-to-pooler mapping
 _DEFAULT_POOLER = {}
@@ -91,3 +118,9 @@ class PreTrainedTextEncoder(nn.Module):
         for n, p in self.transformer.named_parameters():
             if True: #mb optional LayerNorm params etc.
                 p.requires_grad = False
+
+# temporary for fast testing
+if __name__=="__main__":
+    # import fire
+    # fire.Fire()
+    print(_POOLERS)
