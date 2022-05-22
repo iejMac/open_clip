@@ -11,12 +11,11 @@ from torch import TensorType
 try:
     import transformers
     from transformers import AutoModel, AutoTokenizer, AutoConfig, PretrainedConfig
-    from transformers.modeling_outputs import BaseModelOutput
+    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 except ImportError as e:
     transformers = None
 
 from timm.models.layers import Mlp
-
 
 # utils
 def _camel2snake(s):
@@ -38,7 +37,7 @@ class DummyPooler(nn.Module):
         super().__init__()
         pass
     
-    def forward(self, x):
+    def forward(self, x:BaseModelOutput, attention_mask:TensorType):
         return x.last_hidden_state[:, 0, :]
 
 @register_pooler
@@ -54,11 +53,30 @@ class MeanPooler(nn.Module):
 
 @register_pooler
 class MaxPooler(nn.Module):
+    "Max pooling"
 
     def forward(self, x:BaseModelOutput, attenstion_mask:TensorType):
-        masked_output = x.last_hidden_state.masked_fill(attenstion_mask, -torch.inf)
+        masked_output = x.last_hidden_state.masked_fill(attenstion_mask.unsqueeze(-1), -torch.inf)
         return masked_output.max(1).values
 
+@register_pooler
+class ClsPooler(nn.Module):
+    "CLS token pooling"
+
+    def __init__(self, use_pooler_output=True):
+        super().__init__()
+        self.cls_token_position = 0
+        self.use_pooler_output = use_pooler_output
+
+    def forward(self, x:BaseModelOutput, attention_mask:TensorType):
+        
+        if (self.use_pooler_output and 
+            isinstance(x, BaseModelOutputWithPooling) and
+            (x.pooler_output is not None)
+            ):
+            return x.pooler_output
+        
+        return x.last_hidden_state[:, self.cls_token_position, :]
 
 
 # arch-to-pooler mapping
