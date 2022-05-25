@@ -15,7 +15,7 @@ try:
 except ImportError as e:
     transformers = None
 
-from hf_configs import arch_dict
+from .hf_configs import arch_dict
 
 # utils
 def _camel2snake(s):
@@ -120,3 +120,6 @@ class PreTrainedTextEncoder(nn.Module):
         for n, p in self.transformer.named_parameters():
             if True: #mb optional LayerNorm params etc.
                 p.requires_grad = False
+
+    def init_parameters(self):
+      pass

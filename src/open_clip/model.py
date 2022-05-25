@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
+from .hf_model import PreTrainedTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import QuickGELU, VisualTransformer, TextTransformer
@@ -38,6 +39,9 @@ class CLIPTextCfg:
     width: int = 512
     heads: int = 8
     layers: int = 12
+    hf_model_name: str = None
+    proj: str = 'mlp'
+    pooler_type: str = 'mean_pooler'
 
 
 class CLIP(nn.Module):
@@ -86,20 +90,27 @@ class CLIP(nn.Module):
                 width=vision_cfg.width,
                 layers=vision_cfg.layers,
                 heads=vision_heads,
-                mlp_ratio=vision_cfg.mlp_ratio,
                 output_dim=embed_dim,
                 act_layer=act_layer,
             )
 
-        self.text = TextTransformer(
-                context_length=text_cfg.context_length,
-                vocab_size=text_cfg.vocab_size,
-                width=text_cfg.width,
-                heads=text_cfg.heads,
-                layers=text_cfg.layers,
-                output_dim=embed_dim,
-                act_layer=act_layer,
-            )
+        if text_cfg.hf_model_name:
+          self.text = PreTrainedTextEncoder(
+                  text_cfg.hf_model_name,
+                  output_dim=embed_dim,
+                  proj=text_cfg.proj,
+                  pooler_type=text_cfg.pooler_type,
+              )
+        else:
+          self.text = TextTransformer(
+                  context_length=text_cfg.context_length,
+                  vocab_size=text_cfg.vocab_size,
+                  width=text_cfg.width,
+                  heads=text_cfg.heads,
+                  layers=text_cfg.layers,
+                  output_dim=embed_dim,
+                  act_layer=act_layer,
+              )
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
