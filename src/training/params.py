@@ -284,6 +284,19 @@ def parse_args():
     parser.add_argument(
         "--seed", type=int, default=4242, help="Default random seed."
     )
+    # args for huggingface models support
+    parser.add_argument(
+        '--hf_model_name', type=str, default=None, help='Pretrained text encoder name from HuggingFace hub'
+    )
+    parser.add_argument(
+        '--hf_tokenizer_name', type=str, default=None, help='Pretrained tokenizer name HuggingFace hub'
+    )
+    parser.add_argument(
+        "--lock-text",
+        default=False,
+        action='store_true',
+        help="Lock full text tower by disabling gradients.",
+    )
     args = parser.parse_args()
 
     # If some params are not passed, we use the default values based on model name.
@@ -291,5 +304,8 @@ def parse_args():
     for name, val in default_params.items():
         if getattr(args, name) is None:
             setattr(args, name, val)
+
+    if getattr(args, 'hf_tokenizer_name') is None:
+        setattr(args, 'hf_tokenizer_name', args.hf_model_name)
 
     return args
