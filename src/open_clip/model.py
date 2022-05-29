@@ -12,10 +12,13 @@ import torch.nn.functional as F
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from .hf_model import PreTrainedTextEncoder
 from .modified_resnet import ModifiedResNet
 from .timm_model import TimmModel
 from .transformer import QuickGELU, VisualTransformer, TextTransformer
+try:
+    from .hf_model import PreTrainedTextEncoder
+except ImportError as e:
+    pass
 
 
 @dataclass
