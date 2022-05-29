@@ -286,10 +286,10 @@ def parse_args():
     )
     # args for huggingface models support
     parser.add_argument(
-        '--hf_model_name', type=str, default=None, help='Pretrained text encoder name from HuggingFace hub'
+        '--hf-model-name', type=str, default=None, help='Pretrained text encoder name from HuggingFace hub'
     )
     parser.add_argument(
-        '--hf_tokenizer_name', type=str, default=None, help='Pretrained tokenizer name HuggingFace hub'
+        '--hf-tokenizer-name', type=str, default=None, help='Pretrained tokenizer name HuggingFace hub'
     )
     parser.add_argument(
         "--lock-text",
