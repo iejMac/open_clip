@@ -17,7 +17,7 @@ from .timm_model import TimmModel
 from .transformer import QuickGELU, VisualTransformer, TextTransformer
 try:
     from .hf_model import PreTrainedTextEncoder
-except ImportError as e:
+except Exception as e:
     pass
 
 
