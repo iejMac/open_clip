@@ -14,6 +14,7 @@ try:
     from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
 except ImportError as e:
     transformers = None
+    class BaseModelOutput: pass
 
 from .hf_configs import arch_dict
 
