@@ -11,7 +11,7 @@ from torch import TensorType
 try:
     import transformers
     from transformers import AutoModel, AutoTokenizer, AutoConfig, PretrainedConfig
-    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling
+    from transformers.modeling_outputs import BaseModelOutput, BaseModelOutputWithPooling, BaseModelOutputWithPoolingAndCrossAttentions
 except ImportError as e:
     transformers = None
     class BaseModelOutput: pass
@@ -57,9 +57,8 @@ class ClsPooler(nn.Module):
         self.use_pooler_output = use_pooler_output
 
     def forward(self, x:BaseModelOutput, attention_mask:TensorType):
-        
         if (self.use_pooler_output and 
-            isinstance(x, BaseModelOutputWithPooling) and
+            isinstance(x, (BaseModelOutputWithPooling, BaseModelOutputWithPoolingAndCrossAttentions)) and
             (x.pooler_output is not None)
             ):
             return x.pooler_output
@@ -82,11 +81,14 @@ class PreTrainedTextEncoder(nn.Module):
 
         self.output_dim = output_dim
 
+        # TODO: find better way to get this information
+        uses_transformer_pooler = (pooler_type == "cls_pooler")
+
         if transformers is None:
             raise RuntimeError("Please `pip install transformers` to use pre-trained HuggingFace models")
         if config is None:
             self.config = AutoConfig.from_pretrained(model_name_or_path)
-            self.transformer = AutoModel.from_pretrained(model_name_or_path)
+            self.transformer = AutoModel.from_pretrained(model_name_or_path, add_pooling_layer=uses_transformer_pooler)
         else:
             self.config = config
             self.transformer = AutoModel.from_config(config)
@@ -94,6 +96,7 @@ class PreTrainedTextEncoder(nn.Module):
         if pooler_type is None: # get default arch pooler
             self.pooler = _POOLERS[(arch_dict[self.config.model_type]["pooler"])]()
         else:
+            print(pooler_type)
             self.pooler = _POOLERS[pooler_type]()
 
         d_model = getattr(self.config, arch_dict[self.config.model_type]["config_names"]["width"])
