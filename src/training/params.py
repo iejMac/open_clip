@@ -297,6 +297,19 @@ def parse_args():
         action='store_true',
         help="Lock full text tower by disabling gradients.",
     )
+    parser.add_argument(
+        "--lock-text-unlocked-groups",
+        type=int,
+        default=0,
+        help="Leave last n image tower layer groups unlocked.",
+    )
+    parser.add_argument(
+        "--lock-text-freeze-bn-stats",
+        default=False,
+        action='store_true',
+        help="Freeze BatchNorm running stats in image tower for any locked layers.",
+    )
+
     args = parser.parse_args()
 
     # If some params are not passed, we use the default values based on model name.

@@ -139,8 +139,9 @@ def main():
             freeze_bn_stats=args.lock_image_freeze_bn_stats)
 
     if args.lock_text:
-        # TODO: add args
-        model.lock_text_tower()
+        model.lock_text_tower(
+            unlocked_groups=args.lock_text_unlocked_groups,
+            freeze_bn_stats=args.lock_text_freeze_bn_stats)
 
     if args.grad_cache_chunk_size:
         assert args.batch_size % args.grad_cache_chunk_size == 0,\
