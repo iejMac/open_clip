@@ -119,10 +119,21 @@ class PreTrainedTextEncoder(nn.Module):
         return self.proj(pooled_out)
 
     def lock(self, unlocked_layers:int=0, freeze_layer_norm:bool=True):
-        # TODO: add support for partial freezing
-        for n, p in self.transformer.named_parameters():
-            if True: #mb optional LayerNorm params etc.
-                p.requires_grad = False
+        # TODO: find out if full freezing is more likely to work
+        if not unlocked_layers:
+            for n, p in self.transformer.named_parameters():
+                if True: #mb optional LayerNorm params etc.
+                    p.requires_grad = False
+            return
+
+        # TODO: find out if there is better way to do this
+        n_layers = len(self.transformer.encoder.layer) - unlocked_layers - 1 # -1 for embeddings
+        modules = [self.transformer.embeddings, self.transformer.encoder.layer[:n_layers]]
+        for module in modules:
+            for param in module.parameters():
+                param.requires_grad = False
+
+
 
     def init_parameters(self):
       pass
