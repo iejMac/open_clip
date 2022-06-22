@@ -127,7 +127,7 @@ class PreTrainedTextEncoder(nn.Module):
         n_layers = len(self.transformer.encoder.layer) - unlocked_layers - 1 # -1 for embeddings
         modules = [self.transformer.embeddings, self.transformer.encoder.layer[:n_layers]]
         for module in modules:
-            for param in module.parameters():
+            for n, p in module.named_parameters():
                 p.requires_grad = (not freeze_layer_norm) if "LayerNorm" in n.split(".") else False
 
     def init_parameters(self):
