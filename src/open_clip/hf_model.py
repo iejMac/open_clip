@@ -96,7 +96,6 @@ class PreTrainedTextEncoder(nn.Module):
         if pooler_type is None: # get default arch pooler
             self.pooler = _POOLERS[(arch_dict[self.config.model_type]["pooler"])]()
         else:
-            print(pooler_type)
             self.pooler = _POOLERS[pooler_type]()
 
         d_model = getattr(self.config, arch_dict[self.config.model_type]["config_names"]["width"])

@@ -298,13 +298,13 @@ def parse_args():
         help="Lock full text tower by disabling gradients.",
     )
     parser.add_argument(
-        "--lock-text-unlocked-groups",
+        "--lock-text-unlocked-layers",
         type=int,
         default=0,
         help="Leave last n image tower layer groups unlocked.",
     )
     parser.add_argument(
-        "--lock-text-freeze-bn-stats",
+        "--lock-text-freeze-layer-norm",
         default=False,
         action='store_true',
         help="Freeze BatchNorm running stats in image tower for any locked layers.",
