@@ -240,23 +240,6 @@ python -m training.main \
     --resume /path/to/checkpoints/epoch_K.pt
 ```
 
-### Loss Curves
-
-When run on a machine with 8 GPUs the command should produce the following training curve for Conceptual Captions:
-
-![CLIP zero shot training curve](https://raw.githubusercontent.com/mlfoundations/open_clip/main/docs/clip_zeroshot.png)
-
-More detailed curves for Conceptual Captions are given at [/docs/clip_conceptual_captions.md](/docs/clip_conceptual_captions.md).
-
-When training a RN50 on YFCC the same hyperparameters as above are used, with the exception of `lr=5e-4` and `epochs=32`.
-
-Note that to use another model, like `ViT-B/32` or `RN50x4` or `RN50x16` or `ViT-B/16`, specify with `--model RN50x4`.
-
-### Launch tensorboard:
-```bash
-tensorboard --logdir=logs/tensorboard/ --port=7777
-```
-
 ### Training with pre-trained language models as text encoder:
 
 If you wish to use different language models as the text encoder for CLIP you can do so by using one of the huggingface model configs in ```src/open_clip/model_configs``` and passing in it's tokenizer as the ```--model``` and ```--hf-tokenizer-name``` parameters respectively. Currently we only support RoBERTa ("test-roberta" config), however adding new models should be trivial. You can also determine how many layers, from the end, to leave unfrozen with the ```--lock-text-unlocked-layers``` parameter. Here's an example command to train CLIP with the RoBERTa LM that has it's last 10 layers unfrozen:
@@ -278,6 +261,23 @@ python -m training.main \
         --lock-text-unlocked-layers 10 \
         --name "10_unfrozen" \
         --report-to "tensorboard" \
+```
+
+### Loss Curves
+
+When run on a machine with 8 GPUs the command should produce the following training curve for Conceptual Captions:
+
+![CLIP zero shot training curve](https://raw.githubusercontent.com/mlfoundations/open_clip/main/docs/clip_zeroshot.png)
+
+More detailed curves for Conceptual Captions are given at [/docs/clip_conceptual_captions.md](/docs/clip_conceptual_captions.md).
+
+When training a RN50 on YFCC the same hyperparameters as above are used, with the exception of `lr=5e-4` and `epochs=32`.
+
+Note that to use another model, like `ViT-B/32` or `RN50x4` or `RN50x16` or `ViT-B/16`, specify with `--model RN50x4`.
+
+### Launch tensorboard:
+```bash
+tensorboard --logdir=logs/tensorboard/ --port=7777
 ```
 
 ## Evaluation / Zero-Shot
