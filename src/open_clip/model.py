@@ -121,7 +121,7 @@ def _build_text_tower(
         text_cfg = CLIPTextCfg(**text_cfg)
 
     if text_cfg.hf_model_name:
-        self.text = PreTrainedTextEncoder(
+        text = PreTrainedTextEncoder(
             text_cfg.hf_model_name,
             output_dim=embed_dim,
             proj=text_cfg.proj,
