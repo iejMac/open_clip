@@ -347,7 +347,7 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
         wds.select(filter_no_caption_or_no_image),
         wds.decode("pilrgb", handler=log_and_continue),
         wds.rename(image="jpg;png", text="txt"),
-        wds.map_dict(image=preprocess_img, text=get_text_preprocessor(tokenizer_name)),
+        wds.map_dict(image=preprocess_img, text=get_text_processor(tokenizer_name)),
         wds.to_tuple("image", "text"),
         wds.batched(args.batch_size, partial=not is_train),
     ])
@@ -406,7 +406,7 @@ def get_csv_dataset(args, preprocess_fn, is_train, epoch=0, tokenizer_name=None)
         preprocess_fn,
         img_key=args.csv_img_key,
         caption_key=args.csv_caption_key,
-        sep=args.csv_separator
+        sep=args.csv_separator,
 		tokenizer_name=tokenizer_name)
     num_samples = len(dataset)
     sampler = DistributedSampler(dataset) if args.distributed and is_train else None
