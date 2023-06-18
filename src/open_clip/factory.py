@@ -18,7 +18,7 @@ from .openai import load_openai_model
 from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
     list_pretrained_tags_by_model, download_pretrained_from_hf
 from .transform import image_transform, AugmentationCfg
-from .tokenizer import HFTokenizer, tokenize
+from .tokenizer import HFTokenizer, tokenize, SubtitleTokenizer
 
 
 HF_HUB_PREFIX = 'hf-hub:'
@@ -75,7 +75,10 @@ def get_model_config(model_name):
 
 
 def get_tokenizer(model_name):
-    if model_name.startswith(HF_HUB_PREFIX):
+    if model_name.startswith("vid"):
+        config = get_model_config(model_name)
+        tokenizer = SubtitleTokenizer(config['text_cfg']["context_length"] + 1)
+    elif model_name.startswith(HF_HUB_PREFIX):
         tokenizer = HFTokenizer(model_name[len(HF_HUB_PREFIX):])
     else:
         config = get_model_config(model_name)
@@ -184,8 +187,8 @@ def create_model(
         if custom_text:
             if is_hf_model:
                 model_cfg['text_cfg']['hf_model_pretrained'] = pretrained_hf
-            if "coca" in model_name:
-                model = CoCa(**model_cfg, cast_dtype=cast_dtype)
+            if "coca" in model_name or "vid" in model_name:
+                model = CoCa(**model_cfg, cast_dtype=cast_dtype, pad_id=50282)
             else:
                 model = CustomTextCLIP(**model_cfg, cast_dtype=cast_dtype)
         else:
@@ -266,7 +269,7 @@ def create_loss(args):
             world_size=args.world_size,
             use_horovod=args.horovod,
         )
-    elif "coca" in args.model.lower():
+    elif "coca" in args.model.lower() or "vid" in args.model.lower():
         return CoCaLoss(
             caption_loss_weight=args.coca_caption_loss_weight,
             clip_loss_weight=args.coca_contrastive_loss_weight,
@@ -276,6 +279,7 @@ def create_loss(args):
             rank=args.rank,
             world_size=args.world_size,
             use_horovod=args.horovod,
+            pad_id=0 if "vid" not in args.model.lower() else 50282,
         )
     return ClipLoss(
         local_loss=args.local_loss,

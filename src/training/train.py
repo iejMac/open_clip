@@ -88,9 +88,15 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts = batch
+        images, texts_starts = batch
+
+        # TODO: do this collate properly
+        texts = torch.cat([t for (t, s) in texts_starts])
+        starts = torch.cat([s for (t, s) in texts_starts])
+
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
         texts = texts.to(device=device, non_blocking=True)
+        starts = starts.to(device=device, non_blocking=True)
 
         data_time_m.update(time.time() - end)
         optimizer.zero_grad()
@@ -103,7 +109,8 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     with torch.no_grad():
                         dist_model_out = dist_model(images, texts)
                     model_out.update({f'dist_{k}' : v for k, v in dist_model_out.items()})
-                losses = loss(**model_out, output_dict=True)
+                # losses = loss(**model_out, output_dict=True)
+                losses = loss(**model_out, start_inds=starts, output_dict=True)
 
                 total_loss = sum(losses.values())
                 losses["loss"] = total_loss
@@ -143,7 +150,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     for key, val in accum_features.items():
                         accumulated = accum_features[key]
                         inputs[key] = torch.cat(accumulated[:j] +  [model_out[key]] + accumulated[j + 1:])
-                    losses = loss(**inputs, logit_scale=logit_scale, output_dict=True)
+                    losses = loss(**inputs, logit_scale=logit_scale, start_inds=starts, output_dict=True)
                     del inputs
                     total_loss = sum(losses.values())
                     losses["loss"] = total_loss
