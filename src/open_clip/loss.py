@@ -156,7 +156,8 @@ class CoCaLoss(ClipLoss):
         self.pad_id = pad_id
         self.clip_loss_weight = clip_loss_weight
         self.caption_loss_weight = caption_loss_weight
-        self.caption_loss = nn.CrossEntropyLoss(ignore_index=pad_id, reduction='none')
+        # self.caption_loss = nn.CrossEntropyLoss(ignore_index=pad_id, reduction='none')
+        # self.caption_loss = nn.CrossEntropyLoss(ignore_index=pad_id)
 
     def forward(self, image_features, text_features, logits, labels, logit_scale, start_inds, output_dict=False):
         
@@ -165,13 +166,31 @@ class CoCaLoss(ClipLoss):
         if self.clip_loss_weight:
             clip_loss = super().forward(image_features, text_features, logit_scale)
             clip_loss = self.clip_loss_weight * clip_loss
+    
+        '''
+        print(logits.shape)
+        print(logits.min(), logits.max())
+        print(logits.sum())
+        print(labels.shape)
+        print(labels.min(), labels.max())
+        '''
 
+        '''
         caption_loss = self.caption_loss(
             logits.permute(0, 2, 1),
             labels,
         )
+        '''
+        print(logits.shape)
+        caption_loss = F.cross_entropy(logits.permute(0, 2, 1), labels, ignore_index=50282)
+        # n_no_pad = (labels == 50282).sum()
+        # print(n_no_pad)
+        caption_loss = caption_loss.sum() / n_no_pad
+
+        '''
         loss_mask = torch.arange(caption_loss.shape[1]).expand(caption_loss.shape).to(caption_loss.device)
-        loss_mask = (loss_mask >= start_inds).float()
+        # loss_mask = (loss_mask >= start_inds).float()
+        loss_mask = (loss_mask >= -1).float()
         n_pad = (labels == self.pad_id).sum()
         total_supervised = loss_mask.sum() - n_pad
         # print(total_supervised)
@@ -180,6 +199,7 @@ class CoCaLoss(ClipLoss):
         caption_loss = caption_loss.sum() / total_supervised
 
         caption_loss = caption_loss * self.caption_loss_weight + (logit_scale.sum() + image_features.sum() + text_features.sum()) * 0.0
+        '''
 
         if output_dict:
             return {"contrastive_loss": clip_loss, "caption_loss": caption_loss}

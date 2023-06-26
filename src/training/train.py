@@ -45,6 +45,24 @@ def postprocess_clip_output(model_out):
         "logit_scale": model_out[2]
     }
 
+
+def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
+    if isinstance(parameters, torch.Tensor):
+        parameters = [parameters]
+    parameters = [p for p in parameters if p.grad is not None]
+    norm_type = float(norm_type)
+    if len(parameters) == 0:
+        return torch.tensor(0.0)
+    device = parameters[0].grad.device
+    total_norm = torch.norm(
+        torch.stack(
+            [torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]
+        ),
+        norm_type,
+    )
+    return total_norm
+
+
 def unwrap_model(model):
     if hasattr(model, 'module'):
         return model.module
@@ -88,13 +106,17 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         if not args.skip_scheduler:
             scheduler(step)
 
-        images, texts_starts = batch
+        images, texts_starts, keys, urls = batch
+        video_keys = set([k.split("_")[0] for k in keys])
+        shard_urls = set(urls)
+        print(f"UNIQUE VIDEOS: {len(video_keys)} / SHARDS: {len(shard_urls)}")
 
         # TODO: do this collate properly
         texts = torch.cat([t for (t, s) in texts_starts])
         starts = torch.cat([s for (t, s) in texts_starts])
 
         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+        images = None  # TESTING UNCOND
         texts = texts.to(device=device, non_blocking=True)
         starts = starts.to(device=device, non_blocking=True)
 
@@ -161,17 +183,20 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 optimizer.synchronize()
                 scaler.unscale_(optimizer)
                 if args.grad_clip_norm is not None:
+                    print("INININ")
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
                 with optimizer.skip_synchronize():
                     scaler.step(optimizer)
             else:
                 if args.grad_clip_norm is not None:
+                    print("INININ")
                     scaler.unscale_(optimizer)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
                 scaler.step(optimizer)
             scaler.update()
         else:
             if args.grad_clip_norm is not None:
+                print("INININ")
                 torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip_norm, norm_type=2.0)
             optimizer.step()
 
@@ -187,7 +212,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
         end = time.time()
         batch_count = i_accum + 1
         if is_master(args) and (i_accum % args.log_every_n_steps == 0 or batch_count == num_batches_per_epoch):
-            batch_size = len(images)
+            batch_size = len(images) if images is not None else len(texts)
             num_samples = batch_count * batch_size * args.accum_freq * args.world_size
             samples_per_epoch = dataloader.num_samples
             percent_complete = 100.0 * batch_count / num_batches_per_epoch
@@ -205,6 +230,9 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                     for loss_name, loss_m in losses_m.items()
                 ]
             )
+
+            grad_norm = get_grad_norm_(model.parameters())
+
             samples_per_second = args.accum_freq * args.batch_size * args.world_size / batch_time_m.val
             samples_per_second_per_gpu = args.accum_freq * args.batch_size / batch_time_m.val
             logging.info(
@@ -212,7 +240,8 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 f"Data (t): {data_time_m.avg:.3f} "
                 f"Batch (t): {batch_time_m.avg:.3f}, {samples_per_second:#g}/s, {samples_per_second_per_gpu:#g}/s/gpu "
                 f"LR: {optimizer.param_groups[0]['lr']:5f} "
-                f"Logit Scale: {logit_scale_scalar:.3f} " + loss_log
+                f"Logit Scale: {logit_scale_scalar:.3f} "
+                f"Grad Norm: {grad_norm:.3f} " + loss_log
             )
 
             # Save train loss / etc. Using non avg meter values as loggers have their own smoothing
@@ -222,7 +251,8 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
                 "samples_per_second": samples_per_second,
                 "samples_per_second_per_gpu": samples_per_second_per_gpu,
                 "scale": logit_scale_scalar,
-                "lr": optimizer.param_groups[0]["lr"]
+                "lr": optimizer.param_groups[0]["lr"],
+                "grad_norm": grad_norm
             }            
             log_data.update({name:val.val for name,val in losses_m.items()})
 
@@ -240,7 +270,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
     # end for
 
 
-def evaluate(model, data, epoch, args, tb_writer=None):
+def evaluate(model, data, loss, epoch, args, tb_writer=None):
     metrics = {}
     if not is_master(args):
         return metrics
@@ -265,9 +295,15 @@ def evaluate(model, data, epoch, args, tb_writer=None):
         all_image_features, all_text_features = [], []
         with torch.no_grad():
             for i, batch in enumerate(dataloader):
-                images, texts = batch
+                images, texts_starts, keys, urls = batch
+
+                # TODO: do this collate properly
+                texts = torch.cat([t for (t, s) in texts_starts])
+                starts = torch.cat([s for (t, s) in texts_starts])
+
                 images = images.to(device=device, dtype=input_dtype, non_blocking=True)
                 texts = texts.to(device=device, non_blocking=True)
+                starts = starts.to(device=device, non_blocking=True)
 
                 with autocast():
                     model_out = model(images, texts)
@@ -279,30 +315,38 @@ def evaluate(model, data, epoch, args, tb_writer=None):
                     all_image_features.append(image_features.cpu())
                     all_text_features.append(text_features.cpu())
                     logit_scale = logit_scale.mean()
+                    batch_size = images.shape[0]
+                    '''
                     logits_per_image = logit_scale * image_features @ text_features.t()
                     logits_per_text = logits_per_image.t()
 
-                    batch_size = images.shape[0]
                     labels = torch.arange(batch_size, device=device).long()
                     total_loss = (
                         F.cross_entropy(logits_per_image, labels) +
                         F.cross_entropy(logits_per_text, labels)
                     ) / 2
+                    '''
+                    total_loss = (logit_scale.sum() + image_features.sum() + text_features.sum()) * 0.0
 
-                    gen_loss = maybe_compute_generative_loss(model_out)
+                    # gen_loss = maybe_compute_generative_loss(model_out)
+                    gen_loss = loss(image_features, text_features, model_out['logits'], model_out['labels'], logit_scale, starts, output_dict=False)[1]
 
-                cumulative_loss += total_loss * batch_size
+                # cumulative_loss += total_loss * batch_size
+                cumulative_gen_loss += gen_loss
                 num_samples += batch_size
                 if is_master(args) and (i % 100) == 0:
                     logging.info(
                         f"Eval Epoch: {epoch} [{num_samples} / {samples_per_val}]\t"
-                        f"Clip Loss: {cumulative_loss / num_samples:.6f}\t")
+                        # f"Clip Loss: {cumulative_loss / num_samples:.6f}\t")
+                    )
 
                     if gen_loss is not None:
-                        cumulative_gen_loss += gen_loss * batch_size
+                        # cumulative_gen_loss += gen_loss * batch_size
+                        # cumulative_gen_loss += gen_loss
                         logging.info(
-                            f"Generative Loss: {cumulative_gen_loss / num_samples:.6f}\t")
+                            f"Generative Loss: {cumulative_gen_loss / (i+1):.6f}\t")
 
+            '''
             val_metrics = get_clip_metrics(
                 image_features=torch.cat(all_image_features),
                 text_features=torch.cat(all_text_features),
@@ -312,9 +356,10 @@ def evaluate(model, data, epoch, args, tb_writer=None):
             metrics.update(
                 {**val_metrics, "clip_val_loss": loss.item(), "epoch": epoch, "num_samples": num_samples}
             )
-            if gen_loss is not None:
-                gen_loss = cumulative_gen_loss / num_samples
-                metrics.update({"val_generative_loss": gen_loss.item()})
+            '''
+
+            gen_loss = cumulative_gen_loss / (i+1)
+            metrics.update({"val_generative_loss": gen_loss.item()})
 
     if not metrics:
         return metrics
@@ -361,7 +406,7 @@ def get_clip_metrics(image_features, text_features, logit_scale):
     return metrics
 
 
-def maybe_compute_generative_loss(model_out):
+def maybe_compute_generative_loss(model_out, starts):
     if "logits" in model_out and "labels" in model_out:
         token_logits = model_out["logits"]
         token_labels = model_out["labels"]

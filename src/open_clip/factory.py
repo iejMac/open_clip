@@ -77,7 +77,7 @@ def get_model_config(model_name):
 def get_tokenizer(model_name):
     if model_name.startswith("vid"):
         config = get_model_config(model_name)
-        tokenizer = SubtitleTokenizer(config['text_cfg']["context_length"] + 1)
+        tokenizer = SubtitleTokenizer(config['text_cfg']["context_length"])
     elif model_name.startswith(HF_HUB_PREFIX):
         tokenizer = HFTokenizer(model_name[len(HF_HUB_PREFIX):])
     else:

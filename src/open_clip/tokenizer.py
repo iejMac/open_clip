@@ -212,10 +212,11 @@ class SubtitleTokenizer:
         return self.enc.decode(tokens)
 
     def __call__(self, texts: Union[str, List[str]], context_length: int = 77) -> torch.Tensor:
+        texts = "this is a |<SUB>|text text text text text text"
         texts = [texts] if isinstance(texts, str) else texts 
 
         pre_post_texts = [t.split("|<SUB>|") for t in texts]
-        pre_post_toks = [(self._encode(pre + " "), self._encode(post + "<|endofscene|>")) for (pre, post) in pre_post_texts]
+        pre_post_toks = [(self._encode("<|endofscene|>" + pre + " "), self._encode(post + "<|endofscene|>")) for (pre, post) in pre_post_texts]
         y_start = torch.tensor([len(pre) for (pre, post) in pre_post_toks])[None, ...]  # for making mask
 
         comb = [pre + post for (pre, post) in pre_post_toks]

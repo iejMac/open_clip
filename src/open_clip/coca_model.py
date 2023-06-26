@@ -119,6 +119,8 @@ class CoCa(nn.Module):
             cast_dtype=cast_dtype,
         )
 
+        self.uncond_image_embs = nn.Parameter(torch.randn(1, vision_cfg.n_queries - 1, embed_dim))
+
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.pad_id = pad_id
 
@@ -133,7 +135,7 @@ class CoCa(nn.Module):
         image_latent = F.normalize(image_latent, dim=-1) if normalize else image_latent
         return image_latent, tokens_embs
 
-    def _encode_text(self, text, normalize=True, embed_cls=True):
+    def _encode_text(self, text, normalize=True, embed_cls=False):
         text = text[:, :-1] if embed_cls else text # make space for CLS token
         text_latent, token_emb = self.text(text)
         text_latent = F.normalize(text_latent, dim=-1) if normalize else text_latent
@@ -143,17 +145,23 @@ class CoCa(nn.Module):
         image_latent, _ = self._encode_image(images, normalize=normalize)
         return image_latent
 
-    def encode_text(self, text, normalize=True, embed_cls=True):
+    def encode_text(self, text, normalize=True, embed_cls=False):
         text_latent, _ = self._encode_text(text, normalize=normalize, embed_cls=embed_cls)
         return text_latent
 
-    def forward(self, image, text, embed_cls=True, image_latent=None, image_embs=None):
-        text_latent, token_embs = self._encode_text(text, embed_cls=embed_cls)
+    def forward(self, image=None, text=None, embed_cls=False, image_latent=None, image_embs=None):
+        text_latent, token_embs = self._encode_text(text[:, :-1], embed_cls=embed_cls)
         if image_latent is None or image_embs is None:
-            image_latent, image_embs = self._encode_image(image)
+            if image is not None:
+                image_latent, image_embs = self._encode_image(image)
+            else:
+                #TODO: learned embeddings for unconditional text gen
+                image_embs = torch.cat([self.uncond_image_embs] * text.shape[0])
+                image_latent = image_embs[0] # useless
 
         # TODO: add assertion to avoid bugs?
-        labels = text[:, -token_embs.shape[1]:]
+        # labels = text[:, -token_embs.shape[1]:]
+        labels = text[:, 1:]
 
         logits = self.text_decoder(image_embs, token_embs)
         return {
@@ -207,7 +215,7 @@ class CoCa(nn.Module):
                 stopping_criteria
             )
 
-            device = image.device
+            device = image.device if image is not None else "cpu"
 
             if generation_type == "beam_search":
                 output = self._generate_beamsearch(
@@ -257,7 +265,7 @@ class CoCa(nn.Module):
                 x = out[:, -max_seq_len:]
                 cur_len = x.shape[1]
                 logits = self(image, x, image_latent=image_latent, image_embs=image_embs, embed_cls=False)["logits"][:, -1]
-                mask = (out[:, -1] == eos_token_id) | (out[:, -1] == pad_token_id)
+                mask = (out[:, -1] == eos_token_id and cur_len > 1) | (out[:, -1] == pad_token_id)
                 sample = torch.ones((out.shape[0], 1), device=device, dtype=torch.long) * pad_token_id
 
                 if mask.all():

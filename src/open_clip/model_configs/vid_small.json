@@ -1,0 +1,31 @@
+{
+    "embed_dim": 768,
+    "vision_cfg": {
+        "image_size": 224,
+        "layers": 2,
+        "width": 768,
+        "patch_size": 32,
+        "attentional_pool": true,
+        "attn_pooler_heads": 8,
+        "output_tokens": true
+    },
+    "text_cfg": {
+        "context_length": 1024,
+        "vocab_size": 50304,
+        "width": 768,
+        "heads": 8,
+        "layers": 8,
+        "embed_cls": false,
+        "output_tokens": true,
+	"pad_id": 50282
+    },
+    "multimodal_cfg": {
+        "context_length": 1024,
+        "vocab_size": 50304,
+        "width": 768,
+        "heads": 8,
+        "layers": 4,
+        "attn_pooler_heads": 8
+    },
+    "custom_text": true
+}
