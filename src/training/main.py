@@ -345,7 +345,10 @@ def main(args):
             logging.info(f"=> loaded checkpoint '{args.resume}' (epoch {start_epoch})")
 
     # initialize datasets
-    data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=get_tokenizer(args.model))
+    tok = get_tokenizer(args.model)
+    tok.context_length += 1
+    # data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=get_tokenizer(args.model))
+    data = get_data(args, (preprocess_train, preprocess_val), epoch=start_epoch, tokenizer=tok)
     assert len(data), 'At least one train or eval dataset must be specified.'
 
     # create scheduler if train
@@ -400,16 +403,17 @@ def main(args):
         logging.info('Compiling model...')
         model = torch.compile(model)
 
+    loss = create_loss(args)
+
     if 'train' not in data:
         # If using int8, convert to inference mode.
         if args.use_bnb_linear is not None:
             from open_clip.utils import convert_int8_model_to_inference_mode
             convert_int8_model_to_inference_mode(model)
         # Evaluate.
-        evaluate(model, data, start_epoch, args, writer)
+        evaluate(model, data, loss, start_epoch, args, writer)
         return
 
-    loss = create_loss(args)
 
     for epoch in range(start_epoch, args.epochs):
         if is_master(args):
@@ -419,7 +423,7 @@ def main(args):
         completed_epoch = epoch + 1
 
         if any(v in data for v in ('val', 'imagenet-val', 'imagenet-v2')):
-            evaluate(model, data, completed_epoch, args, writer)
+            evaluate(model, data, loss, completed_epoch, args, writer)
 
         # Saving checkpoints.
         if args.save_logs:

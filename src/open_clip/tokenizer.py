@@ -14,6 +14,7 @@ import torch
 
 # https://stackoverflow.com/q/62691279
 import os
+import tiktoken
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
@@ -186,6 +187,44 @@ def tokenize(texts: Union[str, List[str]], context_length: int = 77) -> torch.Lo
         result[i, :len(tokens)] = torch.tensor(tokens)
 
     return result
+
+
+class SubtitleTokenizer:
+    def __init__(self, context_length):
+        self.context_length = context_length
+        base_enc = tiktoken.get_encoding("p50k_base")
+        self.enc = tiktoken.Encoding(
+            name="p50k_base_vid",
+            pat_str=base_enc._pat_str,
+            mergeable_ranks=base_enc._mergeable_ranks,
+            special_tokens={
+                **base_enc._special_tokens,
+                "<|endofscene|>": 50281,
+                "<|pad|>": 50282,
+            }
+        )
+        self.special_tokens = {"<|endoftext|>", "<|endofscene|>", "<|pad|>"}
+        self.pad_token = [50282]
+
+    def _encode(self, text):
+        return self.enc.encode(text, allowed_special=self.special_tokens)
+    def _decode(self, tokens):
+        return self.enc.decode(tokens)
+
+    def __call__(self, texts: Union[str, List[str]], context_length: int = 77) -> torch.Tensor:
+        texts = "this is a |<SUB>|text text text text text text"
+        texts = [texts] if isinstance(texts, str) else texts 
+
+        pre_post_texts = [t.split("|<SUB>|") for t in texts]
+        pre_post_toks = [(self._encode("<|endofscene|>" + pre + " "), self._encode(post + "<|endofscene|>")) for (pre, post) in pre_post_texts]
+        y_start = torch.tensor([len(pre) for (pre, post) in pre_post_toks])[None, ...]  # for making mask
+
+        comb = [pre + post for (pre, post) in pre_post_toks]
+        comb = [c[-self.context_length:] for c in comb]  # truncate from end (supervision there)
+        comb = [c + self.pad_token * (self.context_length - len(c)) for c in comb]
+        torch_comb = torch.tensor(comb)
+
+        return (torch_comb, y_start)
 
 
 class HFTokenizer:
